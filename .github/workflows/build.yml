@@ -1,0 +1,162 @@
+name: Build WPEWebKit runtime
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: WPEWebKit release version
+        required: true
+        default: "2.44.2"
+        type: string
+      source_sha256:
+        description: SHA-256 of the upstream source archive
+        required: true
+        default: "2a3d23cb4fb071ca0db3a09c5a85f27b8bcc6094a2026d3b7407bed4f99218f7"
+        type: string
+      release_revision:
+        description: Packaging revision for this WPEWebKit version
+        required: true
+        default: "1"
+        type: string
+      archlinux_archive_date:
+        description: Arch Linux Archive snapshot (YYYY/MM/DD)
+        required: true
+        default: "2024/07/01"
+        type: string
+      glibc_version:
+        description: Expected glibc runtime version
+        required: true
+        default: "2.39"
+        type: string
+      glibc_package_version:
+        description: Exact archived Arch glibc package version
+        required: true
+        default: "2.39+r52+gf8e4623421-1"
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wpewebkit-${{ inputs.version }}-${{ inputs.release_revision }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: WPEWebKit ${{ inputs.version }} (x86_64, glibc ${{ inputs.glibc_version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: docker.io/archlinux/archlinux@sha256:5d1e369287cc90a15fcdc82bb362b206742676912bb8110411b5be24ab45bbca
+    env:
+      WPE_VERSION: ${{ inputs.version }}
+      WPE_SOURCE_SHA256: ${{ inputs.source_sha256 }}
+      RELEASE_REVISION: ${{ inputs.release_revision }}
+      ARCHLINUX_ARCHIVE_DATE: ${{ inputs.archlinux_archive_date }}
+      EXPECTED_GLIBC_VERSION: ${{ inputs.glibc_version }}
+      GLIBC_PACKAGE_VERSION: ${{ inputs.glibc_package_version }}
+      WPE_BUILD_JOBS: "2"
+
+    steps:
+      - name: Validate dispatch inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$WPE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$WPE_SOURCE_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$RELEASE_REVISION" =~ ^[1-9][0-9]*$ ]]
+          [[ "$ARCHLINUX_ARCHIVE_DATE" =~ ^[0-9]{4}/[0-9]{2}/[0-9]{2}$ ]]
+          [[ "$EXPECTED_GLIBC_VERSION" =~ ^[0-9]+\.[0-9]+$ ]]
+          [[ "$GLIBC_PACKAGE_VERSION" != *$'\n'* ]]
+
+      # Git is not present in the pinned base image, so dependencies must be
+      # installed before actions/checkout can initialize the repository.
+      - name: Install archived build dependencies
+        shell: bash
+        run: |
+          set -euxo pipefail
+          printf 'Server = https://archive.archlinux.org/repos/%s/$repo/os/$arch\n' \
+            "$ARCHLINUX_ARCHIVE_DATE" > /etc/pacman.d/mirrorlist
+
+          cp /etc/pacman.conf /tmp/pacman-build.conf
+          sed -i \
+            -e 's/^SigLevel[[:space:]]*=.*/SigLevel = Optional TrustAll/' \
+            -e 's/^LocalFileSigLevel[[:space:]]*=.*/LocalFileSigLevel = Optional TrustAll/' \
+            /tmp/pacman-build.conf
+
+          pacman --config /tmp/pacman-build.conf -Syyu \
+            --noconfirm --disable-download-timeout
+          pacman --config /tmp/pacman-build.conf -S --needed \
+            --noconfirm --disable-download-timeout \
+            "glibc=$GLIBC_PACKAGE_VERSION" \
+            clang cmake curl git glib2-devel gobject-introspection gperf \
+            gst-plugins-bad lld ninja python ruby systemd unifdef \
+            wayland-protocols wpewebkit xz
+
+          test "$(getconf GNU_LIBC_VERSION | awk '{print $2}')" = "$EXPECTED_GLIBC_VERSION"
+          test "$(pkg-config --modversion wpe-webkit-2.0)" = "$WPE_VERSION"
+          command -v gdbus-codegen
+          rm -f /tmp/pacman-build.conf
+
+      - uses: actions/checkout@v6
+
+      - name: Test relocation patch
+        run: python3 -m unittest discover -s test -p '*_test.py'
+
+      - name: Build relocatable runtime
+        run: |
+          scripts/build_runtime.sh \
+            "$WPE_VERSION" \
+            "$WPE_SOURCE_SHA256" \
+            dist/stage
+
+      - name: Package runtime
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          asset="wpewebkit-${WPE_VERSION}-${RELEASE_REVISION}-linux-x86_64-glibc-${EXPECTED_GLIBC_VERSION}.tar.xz"
+          release_tag="wpewebkit-${WPE_VERSION}-${RELEASE_REVISION}"
+
+          test -f dist/stage/usr/lib/libWPEWebKit-2.0.so.1
+          test -x dist/stage/usr/lib/wpe-webkit-2.0/WPENetworkProcess
+          test -x dist/stage/usr/lib/wpe-webkit-2.0/WPEWebProcess
+
+          {
+            echo "WPEWebKit version: $WPE_VERSION"
+            echo "Source SHA-256: $WPE_SOURCE_SHA256"
+            echo "Packaging revision: $RELEASE_REVISION"
+            echo "Architecture: x86_64"
+            echo "Arch Linux snapshot: $ARCHLINUX_ARCHIVE_DATE"
+            echo "glibc version: $EXPECTED_GLIBC_VERSION"
+            echo "glibc package: $GLIBC_PACKAGE_VERSION"
+            echo "Compiler: $(clang --version | head -n 1)"
+            echo "Build commit: $GITHUB_SHA"
+          } > dist/stage/WPEWEBKIT-BUILD-INFO.txt
+
+          tar -C dist/stage -cJf "dist/$asset" .
+          sha256sum "dist/$asset" > "dist/$asset.sha256"
+          echo "asset=$asset" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.package.outputs.release_tag }}
+          target_commitish: ${{ github.sha }}
+          name: WPEWebKit ${{ inputs.version }} relocatable runtime (revision ${{ inputs.release_revision }})
+          body: |
+            Relocatable WPEWebKit runtime for Linux x86_64.
+
+            - WPEWebKit: `${{ inputs.version }}`
+            - glibc build baseline: `${{ inputs.glibc_version }}`
+            - Arch Linux snapshot: `${{ inputs.archlinux_archive_date }}`
+            - bubblewrap sandbox: enabled
+
+            The archive is intended for Ciyue packaging and contains the patched
+            WPEWebKit library, matching helper processes, injected bundle and
+            license notices. Verify it with the accompanying `.sha256` file.
+          files: |
+            dist/${{ steps.package.outputs.asset }}
+            dist/${{ steps.package.outputs.asset }}.sha256
+          fail_on_unmatched_files: true
