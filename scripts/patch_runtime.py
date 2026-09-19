@@ -43,6 +43,17 @@ def patch(source: Path) -> None:
         (ROOT / "patches/WPERuntimeDirectory.h").read_bytes()
     )
 
+    system_heap = source / "Source/bmalloc/bmalloc/SystemHeap.cpp"
+    if system_heap.is_file():
+        heap_text = system_heap.read_text()
+        old_write = "m_sizeMap[result] = size;"
+        new_write = "m_sizeMap.insert_or_assign(result, size);"
+        old_read = "size = m_sizeMap[base];\n        size_t numErased = m_sizeMap.erase(base);"
+        new_read = "auto it = m_sizeMap.find(base);\n        RELEASE_BASSERT(it != m_sizeMap.end());\n        size = it->second;\n        m_sizeMap.erase(it);"
+        if old_write in heap_text and old_read in heap_text:
+            heap_text = heap_text.replace(old_write, new_write, 1).replace(old_read, new_read, 1)
+            system_heap.write_text(heap_text)
+
 
 if __name__ == "__main__":
     patch(Path(sys.argv[1]))

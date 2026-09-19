@@ -20,7 +20,7 @@ printf '%s  %s\n' "$SOURCE_SHA256" "$ARCHIVE" | sha256sum --check -
 tar --no-same-owner -xJf "$ARCHIVE" -C "$WORK"
 python3 "$ROOT/scripts/patch_runtime.py" "$WORK/wpewebkit-$VERSION"
 
-export CC=gcc CXX=g++
+export CC=clang CXX=clang++
 cmake \
   -S "$WORK/wpewebkit-$VERSION" \
   -B "$WORK/build" \

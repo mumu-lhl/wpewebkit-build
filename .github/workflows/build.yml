@@ -45,7 +45,7 @@ jobs:
   build:
     name: WPEWebKit ${{ inputs.version }} (x86_64, glibc ${{ inputs.glibc_version }})
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 360
     container:
       image: docker.io/archlinux/archlinux@sha256:5d1e369287cc90a15fcdc82bb362b206742676912bb8110411b5be24ab45bbca
     env:
@@ -55,7 +55,7 @@ jobs:
       ARCHLINUX_ARCHIVE_DATE: ${{ inputs.archlinux_archive_date }}
       EXPECTED_GLIBC_VERSION: ${{ inputs.glibc_version }}
       GLIBC_PACKAGE_VERSION: ${{ inputs.glibc_package_version }}
-      WPE_BUILD_JOBS: "2"
+      WPE_BUILD_JOBS: "4"
 
     steps:
       - name: Validate dispatch inputs
@@ -89,7 +89,7 @@ jobs:
           pacman --config /tmp/pacman-build.conf -S --needed \
             --noconfirm --disable-download-timeout \
             "glibc=$GLIBC_PACKAGE_VERSION" \
-            gcc gcc-libs clang cmake curl git glib2-devel gobject-introspection gperf \
+            clang cmake curl git glib2-devel gobject-introspection gperf \
             gst-plugins-bad lld ninja python ruby systemd unifdef \
             wayland-protocols wpewebkit xz flite
 
@@ -97,6 +97,21 @@ jobs:
           pkg-config --exists wpe-webkit-2.0
           command -v gdbus-codegen
           rm -f /tmp/pacman-build.conf
+
+          # Fix Clang 17 / libstdc++ 14 C++23 tuple-like constructor constraint bug
+          python3 << 'EOF'
+          from pathlib import Path
+          tuple_header = Path("/usr/include/c++/14.1.1/tuple")
+          if tuple_header.is_file():
+              text = tuple_header.read_text()
+              for func in ("__dangles_from_tuple_like", "__constructible_from_tuple_like", "__convertible_from_tuple_like"):
+                  old = f"template<typename _UTuple>\n\tstatic consteval bool\n\t{func}()"
+                  new = f"template<__tuple_like _UTuple>\n\tstatic consteval bool\n\t{func}()"
+                  if old in text:
+                      text = text.replace(old, new, 1)
+                      print(f"Patched {func} with __tuple_like in {tuple_header}")
+              tuple_header.write_text(text)
+          EOF
 
       - uses: actions/checkout@v6
 
@@ -131,7 +146,7 @@ jobs:
             echo "Arch Linux snapshot: $ARCHLINUX_ARCHIVE_DATE"
             echo "glibc version: $EXPECTED_GLIBC_VERSION"
             echo "glibc package: $GLIBC_PACKAGE_VERSION"
-            echo "Compiler: $(g++ --version | head -n 1)"
+            echo "Compiler: $(clang --version | head -n 1)"
             echo "Build commit: $GITHUB_SHA"
           } > dist/stage/WPEWEBKIT-BUILD-INFO.txt
 
