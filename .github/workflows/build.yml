@@ -89,7 +89,7 @@ jobs:
           pacman --config /tmp/pacman-build.conf -S --needed \
             --noconfirm --disable-download-timeout \
             "glibc=$GLIBC_PACKAGE_VERSION" \
-            clang cmake curl git glib2-devel gobject-introspection gperf \
+            gcc gcc-libs clang cmake curl git glib2-devel gobject-introspection gperf \
             gst-plugins-bad lld ninja python ruby systemd unifdef \
             wayland-protocols wpewebkit xz flite
 
@@ -131,7 +131,7 @@ jobs:
             echo "Arch Linux snapshot: $ARCHLINUX_ARCHIVE_DATE"
             echo "glibc version: $EXPECTED_GLIBC_VERSION"
             echo "glibc package: $GLIBC_PACKAGE_VERSION"
-            echo "Compiler: $(clang --version | head -n 1)"
+            echo "Compiler: $(g++ --version | head -n 1)"
             echo "Build commit: $GITHUB_SHA"
           } > dist/stage/WPEWEBKIT-BUILD-INFO.txt
 
