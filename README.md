@@ -16,7 +16,7 @@ a pinned Arch Linux environment, and publishes the result as a GitHub Release.
 4. Run the workflow. A successful build publishes the runtime archive and its
    SHA-256 file under the tag `wpewebkit-VERSION-REVISION`.
 
-Defaults currently build WPEWebKit 2.44.2 for Linux x86_64 with a glibc 2.39
+Defaults currently build WPEWebKit 2.50.6 for Linux x86_64 with a glibc 2.39
 baseline. Inputs are validated before package installation, and source changes
 that no longer match the relocation patch fail closed.
 

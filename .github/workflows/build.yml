@@ -6,12 +6,12 @@ on:
       version:
         description: WPEWebKit release version
         required: true
-        default: "2.44.2"
+        default: "2.50.6"
         type: string
       source_sha256:
         description: SHA-256 of the upstream source archive
         required: true
-        default: "2a3d23cb4fb071ca0db3a09c5a85f27b8bcc6094a2026d3b7407bed4f99218f7"
+        default: "8864fd3f6116370d75425f9b1efa48eb188ccf42c92ae9e8aaf2dd51f9f27def"
         type: string
       release_revision:
         description: Packaging revision for this WPEWebKit version
@@ -94,7 +94,7 @@ jobs:
             wayland-protocols wpewebkit xz
 
           test "$(getconf GNU_LIBC_VERSION | awk '{print $2}')" = "$EXPECTED_GLIBC_VERSION"
-          test "$(pkg-config --modversion wpe-webkit-2.0)" = "$WPE_VERSION"
+          pkg-config --exists wpe-webkit-2.0
           command -v gdbus-codegen
           rm -f /tmp/pacman-build.conf
 
@@ -121,6 +121,7 @@ jobs:
           test -f dist/stage/usr/lib/libWPEWebKit-2.0.so.1
           test -x dist/stage/usr/lib/wpe-webkit-2.0/WPENetworkProcess
           test -x dist/stage/usr/lib/wpe-webkit-2.0/WPEWebProcess
+          PKG_CONFIG_PATH="dist/stage/usr/lib/pkgconfig" test "$(pkg-config --modversion wpe-webkit-2.0)" = "$WPE_VERSION"
 
           {
             echo "WPEWebKit version: $WPE_VERSION"
