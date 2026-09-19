@@ -91,7 +91,7 @@ jobs:
             "glibc=$GLIBC_PACKAGE_VERSION" \
             clang cmake curl git glib2-devel gobject-introspection gperf \
             gst-plugins-bad lld ninja python ruby systemd unifdef \
-            wayland-protocols wpewebkit xz
+            wayland-protocols wpewebkit xz flite
 
           test "$(getconf GNU_LIBC_VERSION | awk '{print $2}')" = "$EXPECTED_GLIBC_VERSION"
           pkg-config --exists wpe-webkit-2.0
