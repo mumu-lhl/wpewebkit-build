@@ -21,7 +21,7 @@ on:
       archlinux_archive_date:
         description: Arch Linux Archive snapshot (YYYY/MM/DD)
         required: true
-        default: "2024/07/01"
+        default: "2024/07/20"
         type: string
       glibc_version:
         description: Expected glibc runtime version
@@ -97,21 +97,6 @@ jobs:
           pkg-config --exists wpe-webkit-2.0
           command -v gdbus-codegen
           rm -f /tmp/pacman-build.conf
-
-          # Fix Clang 17 / libstdc++ 14 C++23 tuple-like constructor constraint bug
-          python3 << 'EOF'
-          from pathlib import Path
-          tuple_header = Path("/usr/include/c++/14.1.1/tuple")
-          if tuple_header.is_file():
-              text = tuple_header.read_text()
-              for func in ("__dangles_from_tuple_like", "__constructible_from_tuple_like", "__convertible_from_tuple_like"):
-                  old = f"template<typename _UTuple>\n\tstatic consteval bool\n\t{func}()"
-                  new = f"template<__tuple_like _UTuple>\n\tstatic consteval bool\n\t{func}()"
-                  if old in text:
-                      text = text.replace(old, new, 1)
-                      print(f"Patched {func} with __tuple_like in {tuple_header}")
-              tuple_header.write_text(text)
-          EOF
 
       - uses: actions/checkout@v6
 
