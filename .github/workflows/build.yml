@@ -89,7 +89,8 @@ jobs:
           pacman --config /tmp/pacman-build.conf -S --needed \
             --noconfirm --disable-download-timeout \
             "glibc=$GLIBC_PACKAGE_VERSION" \
-            clang cmake curl git glib2-devel gobject-introspection gperf hyphen libinput \
+            clang cmake curl enchant git glib2-devel gobject-introspection gperf \
+            hyphen libinput \
             gst-plugins-bad lld ninja python ruby systemd unifdef \
             wayland-protocols wpewebkit xz flite
 
