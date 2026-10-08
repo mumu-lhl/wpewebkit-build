@@ -6,12 +6,12 @@ on:
       version:
         description: WPEWebKit release version
         required: true
-        default: "2.50.6"
+        default: "2.54.1"
         type: string
       source_sha256:
         description: SHA-256 of the upstream source archive
         required: true
-        default: "8864fd3f6116370d75425f9b1efa48eb188ccf42c92ae9e8aaf2dd51f9f27def"
+        default: "0de8bdfba011f9cd63ba9a9171fa6038dd2c08237894f4082abbb821f29d3fe9"
         type: string
       release_revision:
         description: Packaging revision for this WPEWebKit version
@@ -121,7 +121,8 @@ jobs:
           test -f dist/stage/usr/lib/libWPEWebKit-2.0.so.1
           test -x dist/stage/usr/lib/wpe-webkit-2.0/WPENetworkProcess
           test -x dist/stage/usr/lib/wpe-webkit-2.0/WPEWebProcess
-          PKG_CONFIG_PATH="dist/stage/usr/lib/pkgconfig" test "$(pkg-config --modversion wpe-webkit-2.0)" = "$WPE_VERSION"
+          installed_version=$(PKG_CONFIG_PATH="$PWD/dist/stage/usr/lib/pkgconfig" pkg-config --modversion wpe-webkit-2.0)
+          test "$installed_version" = "$WPE_VERSION"
 
           {
             echo "WPEWebKit version: $WPE_VERSION"
