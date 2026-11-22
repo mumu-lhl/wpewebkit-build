@@ -4,8 +4,8 @@ Reproducible, relocatable WPEWebKit runtime builds for Ciyue.
 
 The repository contains a manually dispatched GitHub Actions workflow. It
 downloads a checksum-pinned upstream WPEWebKit source release, applies the
-runtime relocation patch, builds the library and matching helper processes in
-a pinned Arch Linux environment, and publishes the result as a GitHub Release.
+runtime patches, builds the library and matching helper processes in a pinned
+Arch Linux environment, and publishes the result as a GitHub Release.
 
 ## Build a release
 
@@ -18,7 +18,18 @@ a pinned Arch Linux environment, and publishes the result as a GitHub Release.
 
 Defaults currently build WPEWebKit 2.54.2 for Linux x86_64 with a glibc 2.39
 baseline. Inputs are validated before package installation, and source changes
-that no longer match the relocation patch fail closed.
+that no longer match a patch fail closed.
+
+## Applied patches
+
+- **Relocation** resolves helper processes, the injected bundle, and the sandbox
+  mount relative to the loaded `libWPEWebKit` (`patches/WPERuntimeDirectory.h`).
+- **Legacy WPE damage** forces a full repaint for `SwapChain::Type::WPEBackend`
+  in `AcceleratedSurface::didRenderFrame()`. WebKit 2.54 defaults to
+  damage-tracked compositing, but the legacy libwpe target does not retain
+  contents while wpebackend-fdo rotates dma-bufs, so partial redraws show stale
+  pixels. This has the same effect as `WEBKIT_SHOW_DAMAGE=1` for that backend
+  only.
 
 ## Archive layout
 
